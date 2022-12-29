@@ -359,20 +359,12 @@ export class TrzszFilter {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async handleTrzszUploadFiles(version: string, directory: boolean, remoteIsWindows: boolean) {
     let sendFiles;
-    let supportDir = true;
+    const supportDir = true;
     if (this.uploadFilesList) {
       sendFiles = this.uploadFilesList;
       this.uploadFilesList = null;
     } else if (isRunningInBrowser) {
-      supportDir = false;
-      if (directory) {
-        // The action will send that transferring directories is not supported.
-        await this.trzszTransfer.sendAction(true, remoteIsWindows, supportDir);
-        // The receiving configuration should fail.
-        await this.trzszTransfer.recvConfig();
-        return;
-      }
-      sendFiles = await browser.selectSendFiles();
+        sendFiles = await browser.selectSendFiles(directory);
     } else {
       const filePaths = await this.chooseSendFiles(directory);
       sendFiles = nodefs.checkPathsReadable(filePaths, directory);

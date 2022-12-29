@@ -61,9 +61,9 @@ export class BrowserFileReader implements TrzszFileReader {
   }
 }
 
-export async function selectSendFiles(): Promise<TrzszFileReader[] | undefined> {
-  if (!window.hasOwnProperty("showOpenFilePicker")) {
-    throw new TrzszError("The browser doesn't support the File System Access API");
+export async function selectSendFiles(directory: boolean): Promise<TrzszFileReader[] | undefined> {
+  if (!window.hasOwnProperty("showOpenFilePicker") || directory) {
+    return await selectInputFiles(directory);
   }
 
   let fileHandleArray;
@@ -87,6 +87,58 @@ export async function selectSendFiles(): Promise<TrzszFileReader[] | undefined> 
     bfrArray.push(new BrowserFileReader(idx, [file.name], file, false));
   }
   return bfrArray;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function selectInputFiles(directory: boolean): Promise<TrzszFileReader[] | undefined> {
+  const input = document.createElement("input");
+  input.type = "file";
+  if (directory) {
+    input.webkitdirectory = true;
+  } else {
+    input.multiple = true;
+  }
+  input.style.display = "none";
+  document.body.appendChild(input);
+  const p = new Promise((resolve, reject) => {
+    input.onchange = () => {
+      const files = input.files;
+      resolve(files);
+      document.body.removeChild(input);
+    };
+    input.onerror = () => {
+      document.body.removeChild(input);
+      reject(new Error());
+    };
+    input.click();
+    window.addEventListener(
+      "focus",
+      async () => {
+        while ((await sleep(500)) || document.hasFocus()) {
+          if (input.parentElement) {
+            if (input.files.length == 0) {
+              document.body.removeChild(input);
+              return reject(new Error());
+            }
+          } else {
+            break;
+          }
+        }
+      },
+      { once: true }
+    );
+  }) as Promise<FileList>;
+  let files: FileList;
+  try {
+    files = await p;
+  } catch (err) {
+    return undefined;
+  }
+  if (!files || !files.length) {
+    return undefined;
+  }
+  return [...[...files].map((file) => new BrowserFileReader(0, file.webkitRelativePath.split("/"), file, false))];
 }
 
 class BrowserFileWriter implements TrzszFileWriter {
